@@ -166,7 +166,6 @@
         const OnboardingModal = ({ onComplete }) => (
             <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
                 <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl max-w-md w-full p-8 text-center animate-in zoom-in-95 duration-500 border border-slate-100 dark:border-slate-700 relative overflow-hidden">
-                    {/* Decorative background circle */}
                     <div className="absolute -top-20 -right-20 w-48 h-48 bg-indigo-50 dark:bg-indigo-900/20 rounded-full blur-3xl pointer-events-none"></div>
                     <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-purple-50 dark:bg-purple-900/20 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -325,6 +324,11 @@
               return () => unsubscribe();
           }, [authUser, isDataLoaded]);
 
+          const showToastMsg = (message, icon = 'fa-info-circle', colorClass = 'bg-indigo-600') => {
+              setToast({ message, icon, colorClass, id: Date.now() });
+              setTimeout(() => setToast(null), 3000);
+          };
+
           // 4. Save to Local Storage & Cloud (React -> Storage/Firestore)
           useEffect(() => {
             if (!isDataLoaded) return;
@@ -341,14 +345,16 @@
                 setIsCloudSyncing(true);
                 setDoc(docRef, { users, habitsByUser, rewardsByUser, isDarkMode, lastUpdated: new Date().toISOString() }, { merge: true })
                     .then(() => setIsCloudSyncing(false))
-                    .catch(() => setIsCloudSyncing(false));
+                    .catch((err) => {
+                        console.error("Firestore Save Error:", err);
+                        setIsCloudSyncing(false);
+                        if (err.code === 'permission-denied') {
+                            showToastMsg('הנתונים לא נשמרו בענן: שגיאת הרשאות ב-Firestore', 'fa-shield-halved', 'bg-red-600');
+                        }
+                    });
             }
-          }, [users, habitsByUser, rewardsByUser, activeUserId, isDarkMode, isDataLoaded]);
+          }, [users, habitsByUser, rewardsByUser, activeUserId, isDarkMode, isDataLoaded, authUser, db]);
 
-          const showToastMsg = (message, icon = 'fa-info-circle', colorClass = 'bg-indigo-600') => {
-              setToast({ message, icon, colorClass, id: Date.now() });
-              setTimeout(() => setToast(null), 3000);
-          };
 
           // --- Authentication Actions ---
           const handleEmailAuth = async (e) => {
@@ -382,14 +388,6 @@
           };
 
           // --- App Logic ---
-          const getHeatmapDays = useMemo(() => {
-              const days = [];
-              for(let i=364; i>=0; i--) {
-                  const d = new Date(); d.setDate(d.getDate() - i); days.push(d.toISOString().split('T')[0]);
-              }
-              return days;
-          }, []);
-
           const activeUser = users.find(u => u.id === activeUserId) || users[0] || {};
           const activeHabits = activeUserId ? (habitsByUser[activeUserId] || []) : [];
           const activeRewards = activeUserId ? (rewardsByUser[activeUserId] || defaultRewards) : defaultRewards;
@@ -494,6 +492,26 @@
               setEditingNote(null);
           };
 
+          // --- Store Logic ---
+          const addReward = (e) => {
+              e.preventDefault();
+              if (!newReward.title.trim()) return;
+              const newRewards = [...activeRewards, { id: 'r'+Date.now(), title: newReward.title, cost: newReward.cost }];
+              setRewardsByUser({ ...rewardsByUser, [activeUserId]: newRewards });
+              setNewReward({ title: '', cost: 100 });
+              showToastMsg('פרס חדש נוסף לחנות!', 'fa-plus', 'bg-emerald-600');
+          };
+
+          const buyReward = (reward) => {
+              if ((activeUser.coins || 0) >= reward.cost) {
+                  updateUserCoins(-reward.cost);
+                  triggerCelebration();
+                  showToastMsg(`מזל טוב! רכשת את הפרס: ${reward.title}`, 'fa-gift', 'bg-emerald-600');
+              } else {
+                  showToastMsg('אין לך מספיק מטבעות כרגע', 'fa-circle-xmark', 'bg-red-500');
+              }
+          };
+
           // --- Drag and Drop Logic ---
           const handleDragStart = (e, id) => {
               e.dataTransfer.setData('text/plain', id);
@@ -524,6 +542,14 @@
               
               setHabitsByUser({ ...habitsByUser, [activeUserId]: allUserHabits });
           };
+
+          const getHeatmapDays = useMemo(() => {
+              const days = [];
+              for(let i=364; i>=0; i--) {
+                  const d = new Date(); d.setDate(d.getDate() - i); days.push(d.toISOString().split('T')[0]);
+              }
+              return days;
+          }, []);
 
           // --- Sub-Views ---
           if (!isDataLoaded) return <div className="min-h-screen flex items-center justify-center text-indigo-500"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
@@ -779,6 +805,21 @@
                         )
                     })}
                 </div>
+
+                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mt-8">
+                    <h3 className="font-bold text-slate-800 dark:text-white mb-4">הוסף פרס משלך לחנות:</h3>
+                    <form onSubmit={addReward} className="flex gap-4 items-end flex-wrap sm:flex-nowrap">
+                        <div className="flex-1 min-w-[200px]">
+                            <label className="block text-sm text-slate-500 mb-1">מה הפרס?</label>
+                            <input type="text" required placeholder="למשל: טיול טבע" value={newReward.title} onChange={e=>setNewReward({...newReward, title: e.target.value})} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white"/>
+                        </div>
+                        <div className="w-32 shrink-0">
+                            <label className="block text-sm text-slate-500 mb-1">עלות (מטבעות)</label>
+                            <input type="number" required min="10" step="10" value={newReward.cost} onChange={e=>setNewReward({...newReward, cost: parseInt(e.target.value)})} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white"/>
+                        </div>
+                        <button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-white p-3 rounded-xl font-bold transition-colors w-full sm:w-auto mt-4 sm:mt-0 shadow-md active:scale-95">הוסף לחנות</button>
+                    </form>
+                </div>
               </div>
           );
 
@@ -826,7 +867,7 @@
                             className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-300 outline-none p-1.5 cursor-pointer pr-2"
                         >
                             {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                            <option value="ADD_NEW">+ הוסף פרופיל...</option>
+                            <option value="ADD_NEW">+ הוסף פרופיל מקומי...</option>
                         </select>
                     </div>
 
@@ -926,6 +967,32 @@
                                     {isSignUp ? 'לחץ כאן כדי להתחבר' : 'לחץ כאן להרשמה מהירה'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                )}
+                
+                {/* Modal: Add Local User */}
+                {showUserModal && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+                            <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">פרופיל מקומי חדש</h2>
+                            <form onSubmit={(e) => {
+                                e.preventDefault();
+                                const newId = 'user-' + Date.now();
+                                setUsers([...users, { id: newId, name: newUserName, avatar: 'fa-user', coins: 0 }]);
+                                setHabitsByUser({ ...habitsByUser, [newId]: [] });
+                                setRewardsByUser({ ...rewardsByUser, [newId]: defaultRewards });
+                                setActiveUserId(newId);
+                                setNewUserName('');
+                                setShowUserModal(false);
+                                showToastMsg(`פרופיל מקומי נוצר: ${newUserName}`, 'fa-user-check', 'bg-indigo-600');
+                            }}>
+                                <input type="text" required placeholder="שם הפרופיל החדש..." value={newUserName} onChange={e => setNewUserName(e.target.value)} className="w-full p-4 mb-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none text-slate-800 dark:text-white" />
+                                <div className="flex gap-3">
+                                    <button type="submit" className="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl active:scale-95 transition-transform">שמור</button>
+                                    <button type="button" onClick={() => {setShowUserModal(false); setActiveUserId(users[0].id);}} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-500 font-bold py-3 rounded-xl active:scale-95 transition-transform">ביטול</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 )}
