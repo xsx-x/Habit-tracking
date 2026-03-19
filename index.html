@@ -84,7 +84,7 @@
     <script type="text/babel" data-type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const { useState, useEffect, useMemo, useRef } = React;
 
@@ -121,7 +121,12 @@
             if (configToUse && configToUse.apiKey) {
                 app = initializeApp(configToUse);
                 auth = getAuth(app);
-                db = getFirestore(app);
+                
+                // הוספת מעקף הסינון (Long Polling)
+                db = initializeFirestore(app, {
+                    experimentalForceLongPolling: true
+                });
+                
                 isCloudEnabled = true;
             }
         } catch (e) {
