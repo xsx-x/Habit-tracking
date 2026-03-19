@@ -90,7 +90,6 @@
 
         // ------------------------------------------------------------------------
         // 🔥 הגדרות חיבור לענן (Firebase) 🔥
-        // כשתעלה את זה ל-GitHub שלך, החלף את הערכים כאן לאלו שתקבל מ-Firebase!
         // ------------------------------------------------------------------------
         const myFirebaseConfig = {
             apiKey: "AIzaSyA5lLpwsJfwy_oxtjTj9UBHPjzRicjWP-8",
@@ -102,6 +101,14 @@
             measurementId: "G-2DE18VWV7G"
         };
 
+        // הפיקוח שמונע שגיאות 404 בגין רווחים נסתרים שהועתקו בטעות למפתחות
+        const cleanConfig = {};
+        for (const key in myFirebaseConfig) {
+            cleanConfig[key] = typeof myFirebaseConfig[key] === 'string' 
+                ? myFirebaseConfig[key].replace(/[\s\uFEFF\xA0]+/g, '') 
+                : myFirebaseConfig[key];
+        }
+
         let app, auth, db;
         let isCloudEnabled = false;
         const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'my-habits-app';
@@ -109,9 +116,9 @@
         try {
             const configToUse = typeof __firebase_config !== 'undefined' 
                 ? JSON.parse(__firebase_config) 
-                : (myFirebaseConfig.apiKey !== "YOUR_API_KEY" ? myFirebaseConfig : null);
+                : cleanConfig;
             
-            if (configToUse) {
+            if (configToUse && configToUse.apiKey) {
                 app = initializeApp(configToUse);
                 auth = getAuth(app);
                 db = getFirestore(app);
@@ -284,7 +291,7 @@
             } else {
                 const defUsers = generateDefaultUsers();
                 setUsers(defUsers);
-                setHabitsByUser({ [defUsers[0].id]: [] }); // Start empty by default if true new user
+                setHabitsByUser({ [defUsers[0].id]: [] }); 
                 setRewardsByUser({ [defUsers[0].id]: defaultRewards });
                 setActiveUserId(defUsers[0].id);
             }
@@ -360,12 +367,16 @@
           const handleEmailAuth = async (e) => {
               e.preventDefault();
               if(!auth) return showToastMsg('הענן אינו מוגדר', 'fa-cloud-xmark', 'bg-red-500');
+              
+              const cleanEmail = authEmail.trim();
+              const cleanPassword = authPassword.trim();
+              
               try {
                   if (isSignUp) {
-                      await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+                      await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
                       showToastMsg('חשבון נוצר והתחברת בהצלחה!', 'fa-user-check', 'bg-emerald-600');
                   } else {
-                      await signInWithEmailAndPassword(auth, authEmail, authPassword);
+                      await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
                       showToastMsg('התחברת בהצלחה!', 'fa-user-check', 'bg-emerald-600');
                   }
                   setShowAuthModal(false);
