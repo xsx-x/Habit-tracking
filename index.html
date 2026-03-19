@@ -83,7 +83,7 @@
 
     <script type="text/babel" data-type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const { useState, useEffect, useMemo, useRef } = React;
@@ -252,6 +252,10 @@
           // Cloud Auth States
           const [authUser, setAuthUser] = useState(null);
           const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+          const [showAuthModal, setShowAuthModal] = useState(false);
+          const [authEmail, setAuthEmail] = useState('');
+          const [authPassword, setAuthPassword] = useState('');
+          const [isSignUp, setIsSignUp] = useState(false);
 
           const todayStr = new Date().toISOString().split('T')[0];
           const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -291,19 +295,6 @@
           // 2. Initialize Firebase Auth
           useEffect(() => {
               if (!isCloudEnabled || !auth) return;
-              const initAuth = async () => {
-                  try {
-                      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                          await signInWithCustomToken(auth, __initial_auth_token);
-                      } else {
-                          onAuthStateChanged(auth, (user) => {
-                              if(!user) signInAnonymously(auth);
-                          });
-                      }
-                  } catch(e) { console.error("Auth error", e); }
-              };
-              initAuth();
-
               const unsubscribe = onAuthStateChanged(auth, (user) => setAuthUser(user));
               return () => unsubscribe();
           }, []);
@@ -360,14 +351,27 @@
           };
 
           // --- Authentication Actions ---
-          const handleGoogleLogin = async () => {
+          const handleEmailAuth = async (e) => {
+              e.preventDefault();
               if(!auth) return showToastMsg('הענן אינו מוגדר', 'fa-cloud-xmark', 'bg-red-500');
-              const provider = new GoogleAuthProvider();
               try {
-                  await signInWithPopup(auth, provider);
-                  showToastMsg('התחברת בהצלחה!', 'fa-user-check', 'bg-emerald-600');
-              } catch (e) {
-                  showToastMsg('שגיאה בהתחברות לגוגל', 'fa-triangle-exclamation', 'bg-red-500');
+                  if (isSignUp) {
+                      await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+                      showToastMsg('חשבון נוצר והתחברת בהצלחה!', 'fa-user-check', 'bg-emerald-600');
+                  } else {
+                      await signInWithEmailAndPassword(auth, authEmail, authPassword);
+                      showToastMsg('התחברת בהצלחה!', 'fa-user-check', 'bg-emerald-600');
+                  }
+                  setShowAuthModal(false);
+                  setAuthEmail('');
+                  setAuthPassword('');
+              } catch (error) {
+                  console.error(error);
+                  let msg = 'שגיאה בהתחברות';
+                  if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') msg = 'אימייל או סיסמה שגויים';
+                  if (error.code === 'auth/email-already-in-use') msg = 'האימייל כבר קיים במערכת';
+                  if (error.code === 'auth/weak-password') msg = 'הסיסמה חלשה מדי (לפחות 6 תווים)';
+                  showToastMsg(msg, 'fa-triangle-exclamation', 'bg-red-500');
               }
           };
 
@@ -378,6 +382,14 @@
           };
 
           // --- App Logic ---
+          const getHeatmapDays = useMemo(() => {
+              const days = [];
+              for(let i=364; i>=0; i--) {
+                  const d = new Date(); d.setDate(d.getDate() - i); days.push(d.toISOString().split('T')[0]);
+              }
+              return days;
+          }, []);
+
           const activeUser = users.find(u => u.id === activeUserId) || users[0] || {};
           const activeHabits = activeUserId ? (habitsByUser[activeUserId] || []) : [];
           const activeRewards = activeUserId ? (rewardsByUser[activeUserId] || defaultRewards) : defaultRewards;
@@ -789,10 +801,10 @@
                     {isCloudEnabled && (
                         <div className="mr-4 flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                             {isCloudSyncing ? <i className="fa-solid fa-arrows-rotate fa-spin text-indigo-500" title="מסנכרן לענן..."></i> : <i className="fa-solid fa-cloud-check text-emerald-500" title="מעודכן לענן"></i>}
-                            {authUser && !authUser.isAnonymous ? (
-                                <span className="flex items-center gap-2"><span className="hidden md:inline">{authUser.displayName || authUser.email}</span><button onClick={handleLogout} className="text-slate-400 hover:text-red-500"><i className="fa-solid fa-right-from-bracket"></i></button></span>
+                            {authUser ? (
+                                <span className="flex items-center gap-2"><span className="hidden md:inline">{authUser.email}</span><button onClick={handleLogout} className="text-slate-400 hover:text-red-500" title="התנתק"><i className="fa-solid fa-right-from-bracket"></i></button></span>
                             ) : (
-                                <button onClick={handleGoogleLogin} className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 flex items-center gap-1"><i className="fa-brands fa-google"></i> התחבר לגיבוי</button>
+                                <button onClick={() => setShowAuthModal(true)} className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 flex items-center gap-1"><i className="fa-solid fa-user-lock"></i> התחבר / הירשם</button>
                             )}
                         </div>
                     )}
@@ -879,6 +891,40 @@
                             <div className="flex gap-3">
                                 <button onClick={saveNote} className="flex-1 bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 shadow-md active:scale-95 transition-all">שמור הערה</button>
                                 <button onClick={() => setEditingNote(null)} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 font-bold py-4 rounded-xl hover:bg-slate-200 active:scale-95 transition-all">סגור</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal: Email/Password Auth */}
+                {showAuthModal && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 rounded-xl flex items-center justify-center"><i className="fa-solid fa-cloud text-xl"></i></div>
+                                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{isSignUp ? 'הרשמה לענן' : 'התחברות לענן'}</h2>
+                            </div>
+                            <form onSubmit={handleEmailAuth} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">אימייל</label>
+                                    <input type="email" required placeholder="כתובת אימייל" value={authEmail} onChange={e => setAuthEmail(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left" dir="ltr" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">סיסמה {isSignUp && '(מינימום 6 תווים)'}</label>
+                                    <input type="password" required placeholder="סיסמה" value={authPassword} onChange={e => setAuthPassword(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left" dir="ltr" />
+                                </div>
+                                <div className="flex gap-3 pt-4">
+                                    <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-4 rounded-2xl hover:from-indigo-700 hover:to-purple-700 shadow-md active:scale-95 transition-all text-lg">
+                                        {isSignUp ? 'הירשם ושמור' : 'התחבר למערכת'}
+                                    </button>
+                                    <button type="button" onClick={() => setShowAuthModal(false)} className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-6 font-bold py-4 rounded-2xl hover:bg-slate-200 active:scale-95 transition-all">ביטול</button>
+                                </div>
+                            </form>
+                            <div className="mt-6 text-center border-t border-slate-100 dark:border-slate-700 pt-6">
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">{isSignUp ? 'כבר יש לך חשבון?' : 'עדיין אין לך חשבון גיבוי?'}</p>
+                                <button onClick={() => setIsSignUp(!isSignUp)} className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline">
+                                    {isSignUp ? 'לחץ כאן כדי להתחבר' : 'לחץ כאן להרשמה מהירה'}
+                                </button>
                             </div>
                         </div>
                     </div>
