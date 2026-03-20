@@ -628,6 +628,18 @@
 
           if (!isDataLoaded) return <div className="flex-grow flex items-center justify-center text-indigo-500"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
 
+          const resetUserData = () => {
+              if (window.confirm("אזהרה: פעולה זו תמחק את כל ההרגלים, ההיסטוריה והמטבעות של הפרופיל הנוכחי ותתחיל הכל מאפס. האם להמשיך?")) {
+                  if (window.confirm("האם אתה בטוח לחלוטין? לא ניתן לשחזר נתונים אלו.")) {
+                      setHabitsByUser({ ...habitsByUser, [activeUserId]: [] });
+                      setRewardsByUser({ ...rewardsByUser, [activeUserId]: defaultRewards });
+                      setUsers(users.map(u => u.id === activeUserId ? { ...u, coins: 0 } : u));
+                      showToastMsg('הנתונים אופסו בהצלחה', 'fa-rotate-left', 'bg-emerald-600');
+                      setActiveView('DASHBOARD');
+                  }
+              }
+          };
+
           const renderDashboard = () => {
               const visibleHabits = activeHabits.filter(h => !h.isArchived);
               const archivedHabits = activeHabits.filter(h => h.isArchived);
@@ -978,6 +990,16 @@
                               <span className="text-red-500"><i className="fa-solid fa-xmark"></i> פספוסים ({totalMisses})</span>
                           </div>
                       </div>
+
+                      <div className="bg-red-50 dark:bg-red-900/20 backdrop-blur-md rounded-3xl p-8 shadow-sm border border-red-100 dark:border-red-800/30 text-center sm:text-right flex flex-col sm:flex-row justify-between items-center gap-4">
+                          <div>
+                              <h3 className="text-xl font-bold text-red-800 dark:text-red-300 mb-1"><i className="fa-solid fa-triangle-exclamation"></i> איפוס נתוני פרופיל</h3>
+                              <p className="text-sm text-red-600 dark:text-red-400">מחיקת כל ההרגלים, ההיסטוריה ואיפוס המטבעות ל-0. פעולה זו אינה ניתנת לביטול.</p>
+                          </div>
+                          <button onClick={resetUserData} className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold transition-all active:scale-95 shadow-sm whitespace-nowrap">
+                              <i className="fa-solid fa-rotate-left"></i> אפס את כל הנתונים
+                          </button>
+                      </div>
                   </div>
               );
           };
@@ -1061,57 +1083,60 @@
               {toast && (<div className="fixed bottom-8 left-1/2 -translate-x-1/2 animate-toast flex items-center gap-3 px-6 py-3 rounded-full shadow-lg text-white font-bold text-sm" style={{backgroundColor: toast.colorClass.includes('bg-red') ? '#ef4444' : toast.colorClass.includes('bg-emerald') ? '#10b981' : '#4f46e5'}}><i className={`fa-solid ${toast.icon} text-lg`}></i> {toast.message}</div>)}
 
               <div className="max-w-5xl mx-auto w-full flex-grow">
-                <nav className="flex flex-col sm:flex-row justify-between items-center mb-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors gap-4 sticky top-4 z-40">
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-12 h-12 flex items-center justify-center rounded-2xl text-white shadow-lg shadow-indigo-200 dark:shadow-none"><i className="fa-solid fa-trophy text-xl"></i></div>
-                    <h1 className="text-2xl font-black tracking-tight cursor-pointer hover:text-indigo-600 transition-colors" onClick={()=>setActiveView('DASHBOARD')}>הרגלים טובים</h1>
+                <div className="mb-8 space-y-4 sticky top-4 z-40">
+                  <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4 transition-colors">
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
+                      <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-12 h-12 flex items-center justify-center rounded-2xl text-white shadow-lg shadow-indigo-200 dark:shadow-none shrink-0"><i className="fa-solid fa-trophy text-xl"></i></div>
+                      <h1 className="text-2xl font-black tracking-tight cursor-pointer hover:text-indigo-600 transition-colors" onClick={()=>setActiveView('DASHBOARD')}>הרגלים טובים</h1>
+                    </div>
                     
-                    {isCloudEnabled && (
-                        <div className="mr-4 flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                            {isCloudSyncing ? <i className="fa-solid fa-arrows-rotate fa-spin text-indigo-500" title="מסנכרן לענן..."></i> : <i className="fa-solid fa-cloud-check text-emerald-500" title="מעודכן לענן"></i>}
-                            {authUser ? (
-                                <span className="flex items-center gap-2"><span className="hidden md:inline">{authUser.email}</span><button onClick={handleLogout} className="text-slate-400 hover:text-red-500" title="התנתק"><i className="fa-solid fa-right-from-bracket"></i></button></span>
-                            ) : (
-                                <button onClick={() => setShowAuthModal(true)} className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 flex items-center gap-1"><i className="fa-solid fa-user-lock"></i> התחבר / הירשם</button>
-                            )}
-                        </div>
-                    )}
-                    {!isCloudEnabled && <span className="mr-4 text-xs bg-amber-50 text-amber-600 px-3 py-1.5 rounded-full border border-amber-200 shadow-sm"><i className="fa-solid fa-hard-drive"></i> מצב מקומי</span>}
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end flex-wrap sm:flex-nowrap">
+                      {isCloudEnabled && (
+                          <div className="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                              {isCloudSyncing ? <i className="fa-solid fa-arrows-rotate fa-spin text-indigo-500" title="מסנכרן לענן..."></i> : <i className="fa-solid fa-cloud-check text-emerald-500" title="מעודכן לענן"></i>}
+                              {authUser ? (
+                                  <span className="flex items-center gap-2"><span className="hidden md:inline">{authUser.email}</span><button onClick={handleLogout} className="text-slate-400 hover:text-red-500" title="התנתק"><i className="fa-solid fa-right-from-bracket"></i></button></span>
+                              ) : (
+                                  <button onClick={() => setShowAuthModal(true)} className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 flex items-center gap-1"><i className="fa-solid fa-user-lock"></i> התחבר / הירשם</button>
+                              )}
+                          </div>
+                      )}
+                      {!isCloudEnabled && <span className="text-xs bg-amber-50 text-amber-600 px-3 py-1.5 rounded-full border border-amber-200 shadow-sm"><i className="fa-solid fa-hard-drive"></i> מצב מקומי</span>}
+                      
+                      <div className="flex items-center bg-slate-50 dark:bg-slate-900 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
+                          <i className="fa-solid fa-user text-slate-400 ml-1.5 mr-2 text-sm"></i>
+                          <select 
+                              value={activeUserId || ''} 
+                              onChange={(e) => {
+                                  if(e.target.value === 'ADD_NEW') setShowUserModal(true);
+                                  else { setActiveUserId(e.target.value); setActiveView('DASHBOARD'); }
+                              }}
+                              className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-300 outline-none py-1.5 cursor-pointer pr-1 pl-2 max-w-[120px] sm:max-w-[auto] truncate"
+                          >
+                              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                              <option value="ADD_NEW">+ פרופיל חדש...</option>
+                          </select>
+                      </div>
+
+                      <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-10 h-10 shrink-0 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-yellow-500 hover:shadow-md active:scale-90 transition-all flex items-center justify-center shadow-sm"><i className={`fa-solid ${isDarkMode ? 'fa-sun text-yellow-500' : 'fa-moon'} text-lg`}></i></button>
+                    </div>
                   </div>
                   
-                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end overflow-x-auto pb-1 sm:pb-0">
-                    <button onClick={() => setActiveView('ABOUT')} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 active:scale-95 transition-all border shadow-sm hover:shadow-md ${activeView === 'ABOUT' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 border-emerald-200 dark:border-emerald-800/50' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                        <i className="fa-solid fa-circle-info"></i> <span className="hidden sm:inline">אודות</span>
-                    </button>
-                    
-                    <button onClick={() => setActiveView('STATS')} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 active:scale-95 transition-all border shadow-sm hover:shadow-md ${activeView === 'STATS' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 border-blue-200 dark:border-blue-800/50' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                        <i className="fa-solid fa-chart-line"></i> <span className="hidden sm:inline">סטטיסטיקה</span>
-                    </button>
-
-                    <button onClick={() => setActiveView('STORE')} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 active:scale-95 transition-all border shadow-sm hover:shadow-md ${activeView === 'STORE' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 border-amber-200 dark:border-amber-800/50' : 'bg-white dark:bg-slate-900 text-amber-500 border-amber-100 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-slate-800'}`}>
-                        {activeUser.coins || 0} <i className="fa-solid fa-store"></i>
-                    </button>
-
-                    <div className="flex items-center bg-white dark:bg-slate-900 rounded-xl p-1 border border-slate-200 dark:border-slate-700 ml-2 shadow-sm hover:shadow-md transition-shadow">
-                        <select 
-                            value={activeUserId || ''} 
-                            onChange={(e) => {
-                                if(e.target.value === 'ADD_NEW') setShowUserModal(true);
-                                else { setActiveUserId(e.target.value); setActiveView('DASHBOARD'); }
-                            }}
-                            className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-300 outline-none p-1.5 cursor-pointer pr-2"
-                        >
-                            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                            <option value="ADD_NEW">+ הוסף פרופיל מקומי...</option>
-                        </select>
-                    </div>
-
-                    <div className="flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-4 ml-2">
-                      <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-yellow-500 hover:shadow-md active:scale-90 transition-all flex items-center justify-center shadow-sm"><i className={`fa-solid ${isDarkMode ? 'fa-sun text-yellow-500' : 'fa-moon'} text-xl`}></i></button>
-                      <button onClick={() => setActiveView('DASHBOARD')} className={`w-10 h-10 rounded-xl shadow-sm border flex items-center justify-center active:scale-90 transition-all ${activeView === 'DASHBOARD' ? 'bg-indigo-50 border-indigo-200 dark:border-indigo-800 dark:bg-indigo-900/30 text-indigo-600' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400 hover:shadow-md hover:text-indigo-500'}`}><i className="fa-solid fa-table-cells-large text-xl"></i></button>
-                    </div>
+                  <div className="flex items-center justify-start gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                      <button onClick={() => setActiveView('DASHBOARD')} className={`shrink-0 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm ${activeView === 'DASHBOARD' || activeView === 'HABIT_DETAIL' ? 'bg-indigo-600 text-white shadow-indigo-200 dark:shadow-none' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700'}`}>
+                          <i className="fa-solid fa-table-cells-large"></i> <span className="hidden sm:inline">לוח בקרה</span><span className="sm:hidden">ראשי</span>
+                      </button>
+                      <button onClick={() => setActiveView('STATS')} className={`shrink-0 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm ${activeView === 'STATS' ? 'bg-blue-600 text-white shadow-blue-200 dark:shadow-none' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700'}`}>
+                          <i className="fa-solid fa-chart-line"></i> סטטיסטיקה
+                      </button>
+                      <button onClick={() => setActiveView('STORE')} className={`shrink-0 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm ${activeView === 'STORE' ? 'bg-amber-500 text-white shadow-amber-200 dark:shadow-none' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700'}`}>
+                          <i className="fa-solid fa-store"></i> חנות <span className="bg-white/30 px-2 py-0.5 rounded-md text-sm">{activeUser.coins || 0}</span>
+                      </button>
+                      <button onClick={() => setActiveView('ABOUT')} className={`shrink-0 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm ${activeView === 'ABOUT' ? 'bg-emerald-600 text-white shadow-emerald-200 dark:shadow-none' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700'}`}>
+                          <i className="fa-solid fa-circle-info"></i> אודות
+                      </button>
                   </div>
-                </nav>
+                </div>
 
                 {activeView === 'DASHBOARD' && renderDashboard()}
                 {activeView === 'HABIT_DETAIL' && renderHabitDetail()}
