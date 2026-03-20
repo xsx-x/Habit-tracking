@@ -129,7 +129,7 @@
             console.error("שגיאה בהפעלת Firebase:", e);
         }
 
-        const generateDefaultUsers = () => [{ id: 'user-default', name: 'הפרופיל שלי', avatar: 'fa-user', coins: 150 }];
+        const generateDefaultUsers = () => [{ id: 'user-default', name: 'הפרופיל שלי', avatar: 'fa-user', coins: 0 }];
         const defaultRewards = [
             { id: 'r1', title: 'קניית ספר חדש', cost: 500 },
             { id: 'r2', title: 'כוס קפה מיוחדת', cost: 100 }
@@ -231,7 +231,6 @@
           const [showConfetti, setShowConfetti] = useState(false);
           const [isDataLoaded, setIsDataLoaded] = useState(false);
           
-          // --- מנעול למניעת דריסת נתונים מהענן ---
           const [isCloudDataLoaded, setIsCloudDataLoaded] = useState(false);
           
           const [showOnboarding, setShowOnboarding] = useState(false);
@@ -249,12 +248,12 @@
 
           const todayStr = new Date().toISOString().split('T')[0];
           const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-          const [newHabit, setNewHabit] = useState({ name: '', startDate: todayStr, endDate: '', goalType: 'total', targetDays: 0 });
+          const [newHabit, setNewHabit] = useState({ name: '', startDate: todayStr, endDate: '', frequencyType: 'daily', specificDays: [], weeklyTarget: 1, rewardAmount: 10 });
           const [showUserModal, setShowUserModal] = useState(false);
           const [newUserName, setNewUserName] = useState('');
           const [newReward, setNewReward] = useState({ title: '', cost: 100 });
 
-          // 1. חילוץ מהזיכרון המקומי (פועל ראשון)
+          // 1. חילוץ מהזיכרון המקומי
           useEffect(() => {
             const hasSeenOnboarding = localStorage.getItem('habitsApp_onboarding');
             if (!hasSeenOnboarding) setShowOnboarding(true);
@@ -282,20 +281,17 @@
             setIsDataLoaded(true);
           }, []);
 
-          // 2. האזנה לחיבור המשתמש ב-Firebase
+          // 2. האזנה לחיבור הענן
           useEffect(() => {
               if (!isCloudEnabled || !auth) return;
               const unsubscribe = onAuthStateChanged(auth, (user) => {
                   setAuthUser(user);
-                  if (!user) {
-                      // איפוס המנעול כאשר מתנתקים
-                      setIsCloudDataLoaded(false);
-                  }
+                  if (!user) setIsCloudDataLoaded(false);
               });
               return () => unsubscribe();
           }, []);
 
-          // 3. משיכת נתונים מהענן (קורה מיד אחרי שהמשתמש מתחבר)
+          // 3. משיכת נתונים מהענן
           useEffect(() => {
               if (!isCloudEnabled || !authUser || !db || !isDataLoaded) return;
               setIsCloudSyncing(true);
@@ -314,14 +310,11 @@
                           else document.documentElement.classList.remove('dark');
                       }
                   }
-                  
-                  // 🔥 פתיחת המנעול - עכשיו המערכת יודעת שהנתונים מהענן ירדו בשלמותם! 🔥
                   setIsCloudDataLoaded(true);
-                  
               }, (err) => {
                   console.error("Sync error", err);
                   setIsCloudSyncing(false);
-                  setIsCloudDataLoaded(true); // משחרר את המנעול כדי שהמשתמש יוכל לעבוד במקרה של שגיאה זמנית
+                  setIsCloudDataLoaded(true);
               });
               return () => unsubscribe();
           }, [authUser, isDataLoaded]);
@@ -331,7 +324,7 @@
               setTimeout(() => setToast(null), 3000);
           };
 
-          // 4. שמירה מקומית ולענן (מופעל בכל שינוי בנתונים)
+          // 4. שמירה מקומית ולענן
           useEffect(() => {
             if (!isDataLoaded) return;
             localStorage.setItem('habitsApp_users', JSON.stringify(users));
@@ -342,7 +335,6 @@
             if (isDarkMode) document.documentElement.classList.add('dark');
             else document.documentElement.classList.remove('dark');
 
-            // 🔥 התיקון הקריטי: שומר לענן רק אם משתנה ה-isCloudDataLoaded פתוח! 🔥
             if (isCloudEnabled && authUser && db && isCloudDataLoaded) {
                 const docRef = doc(db, 'artifacts', currentAppId, 'users', authUser.uid, 'appData', 'main');
                 setIsCloudSyncing(true);
@@ -359,10 +351,8 @@
           const handleEmailAuth = async (e) => {
               e.preventDefault();
               if(!auth) return showToastMsg('הענן אינו מוגדר', 'fa-cloud-xmark', 'bg-red-500');
-              
               const cleanEmail = authEmail.trim();
               const cleanPassword = authPassword.trim();
-              
               try {
                   if (isSignUp) {
                       await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
@@ -393,55 +383,109 @@
           const activeHabits = activeUserId ? (habitsByUser[activeUserId] || []) : [];
           const activeRewards = activeUserId ? (rewardsByUser[activeUserId] || defaultRewards) : defaultRewards;
 
-          const smartMessage = useMemo(() => {
-              const visibleHabits = activeHabits.filter(h => !h.isArchived);
-              if (!visibleHabits.length) return { icon: 'fa-hand-sparkles', text: "ברוך הבא! הוסף הרגל חדש כדי להתחיל לצמוח.", color: "text-indigo-600 dark:text-indigo-400" };
-              let hasMissedYesterday = false; let greatStreaksCount = 0;
-              visibleHabits.forEach(h => {
-                  let streak = 0; const sortedDates = Object.keys(h.logs || {}).sort().reverse();
-                  for (let date of sortedDates) {
-                      if (date > todayStr) continue;
-                      if (h.logs[date] === 1) streak++; else if (date !== todayStr) break; 
-                  }
-                  if (streak >= 7) greatStreaksCount++;
-                  if (h.logs[yesterdayStr] === -1 || h.logs[yesterdayStr] === 0) hasMissedYesterday = true;
-              });
-              if (greatStreaksCount >= 2) return { icon: 'fa-fire-flame-curved', text: "וואו! אתה על גל של התמדה. המשך כך והעץ שלך רק ימשיך לפרוח!", color: "text-orange-500" };
-              if (hasMissedYesterday) return { icon: 'fa-arrow-rotate-right', text: "אתמול התפספס? לא קרה כלום! היום זה יום חדש להתחלה חדשה. עלה והצלחה!", color: "text-blue-500" };
-              return { icon: 'fa-sun', text: "שיהיה יום מוצלח, מלא בעשייה והתקדמות אישית!", color: "text-amber-500" };
-          }, [activeHabits]);
-
           const getHabitStats = (habit) => {
             const logs = habit.logs || {};
+            const frequencyType = habit.frequencyType || 'daily';
             const successCount = Object.values(logs).filter(v => v === 1).length;
-            const totalDays = Math.max(1, Math.ceil((new Date(habit.endDate) - new Date(habit.startDate)) / 86400000) + 1);
-            let progress = 0; let isGoalMet = false; let currentWeekSuccesses = 0;
-            if (habit.goalType === 'weekly' && habit.targetDays > 0) {
-                const d = new Date(todayStr); d.setDate(d.getDate() - d.getDay()); 
-                let currDate = new Date(d.toISOString().split('T')[0]);
-                for (let i=0; i<7; i++) {
-                    if (logs[currDate.toISOString().split('T')[0]] === 1) currentWeekSuccesses++;
-                    currDate.setDate(currDate.getDate()+1);
+            
+            let totalDays = 0;
+            const start = new Date(habit.startDate);
+            const end = new Date(habit.endDate);
+            const today = new Date(todayStr);
+            
+            let curr = new Date(start);
+            while (curr <= end) {
+                if (frequencyType === 'specific_days') {
+                    if (habit.specificDays && habit.specificDays.includes(curr.getDay())) totalDays++;
+                } else {
+                    totalDays++;
                 }
-                progress = Math.min(100, (currentWeekSuccesses / habit.targetDays) * 100);
-                isGoalMet = currentWeekSuccesses >= habit.targetDays;
-            } else {
-                progress = totalDays > 0 ? (successCount / totalDays) * 100 : 0;
-                isGoalMet = habit.targetDays > 0 && successCount >= habit.targetDays;
+                curr.setDate(curr.getDate() + 1);
             }
+            if (frequencyType === 'weekly_target') {
+                const totalWeeks = Math.ceil(((end - start) / 86400000 + 1) / 7);
+                totalDays = totalWeeks * (habit.weeklyTarget || 1);
+            }
+            if (totalDays === 0) totalDays = 1; 
+
+            let progress = (successCount / totalDays) * 100;
             let streak = 0;
-            const sortedDates = Object.keys(logs).sort().reverse();
-            for (let date of sortedDates) {
-              if (date > todayStr) continue;
-              if (logs[date] === 1) streak++; else if (date !== todayStr) break; 
+            
+            if (frequencyType === 'weekly_target') {
+                let currentStreak = 0;
+                const weeks = {};
+                for (const [dateStr, status] of Object.entries(logs)) {
+                    if (status === 1) {
+                        const logDate = new Date(dateStr);
+                        if (logDate >= start && logDate <= today) {
+                            const diffDays = Math.floor((logDate - start) / 86400000);
+                            const weekIdx = Math.floor(diffDays / 7);
+                            weeks[weekIdx] = (weeks[weekIdx] || 0) + 1;
+                        }
+                    }
+                }
+                const currentWeekIdx = Math.floor((today - start) / 86400000 / 7);
+                for (let i = currentWeekIdx; i >= 0; i--) {
+                    if ((weeks[i] || 0) >= (habit.weeklyTarget || 1)) {
+                        currentStreak++;
+                    } else if (i !== currentWeekIdx) {
+                        break;
+                    }
+                }
+                streak = currentStreak;
+            } else {
+                const requiredDates = [];
+                let d = new Date(today);
+                if (d > end) d = new Date(end);
+                
+                let daysLooked = 0;
+                while (d >= start && daysLooked < 365) {
+                    if (frequencyType === 'specific_days') {
+                        if (habit.specificDays && habit.specificDays.includes(d.getDay())) {
+                            requiredDates.push(d.toISOString().split('T')[0]);
+                        }
+                    } else {
+                        requiredDates.push(d.toISOString().split('T')[0]);
+                    }
+                    d.setDate(d.getDate() - 1);
+                    daysLooked++;
+                }
+                
+                for (let date of requiredDates) {
+                    if (logs[date] === 1) {
+                        streak++;
+                    } else if (date !== todayStr) {
+                        break;
+                    }
+                }
             }
-            return { successCount, totalDays, progress, isGoalMet, streak, currentWeekSuccesses };
+            
+            return { successCount, totalDays, progress, streak };
           };
 
           const allAchievements = useMemo(() => {
             let maxStreak = 0;
             activeHabits.forEach(h => { if(!h.isArchived) { const s = getHabitStats(h); if (s.streak > maxStreak) maxStreak = s.streak; } });
             return { maxStreak };
+          }, [activeHabits]);
+
+          const smartMessage = useMemo(() => {
+              const visibleHabits = activeHabits.filter(h => !h.isArchived);
+              if (!visibleHabits.length) return { icon: 'fa-hand-sparkles', text: "ברוך הבא! הוסף הרגל חדש כדי להתחיל לצמוח.", color: "text-indigo-600 dark:text-indigo-400" };
+              let hasMissedYesterday = false; let greatStreaksCount = 0;
+              visibleHabits.forEach(h => {
+                  const s = getHabitStats(h);
+                  if (s.streak >= 7) greatStreaksCount++;
+                  
+                  let yesterdayRequired = true;
+                  if (h.frequencyType === 'specific_days') yesterdayRequired = (h.specificDays || []).includes(new Date(yesterdayStr).getDay());
+                  else if (h.frequencyType === 'weekly_target') yesterdayRequired = false;
+                  
+                  if (yesterdayRequired && (h.logs[yesterdayStr] === -1 || h.logs[yesterdayStr] === 0)) hasMissedYesterday = true;
+              });
+              if (greatStreaksCount >= 2) return { icon: 'fa-fire-flame-curved', text: "וואו! אתה על גל של התמדה. המשך כך והעץ שלך רק ימשיך לפרוח!", color: "text-orange-500" };
+              if (hasMissedYesterday) return { icon: 'fa-arrow-rotate-right', text: "אתמול התפספס? לא קרה כלום! היום זה יום חדש להתחלה חדשה. עלה והצלחה!", color: "text-blue-500" };
+              return { icon: 'fa-sun', text: "שיהיה יום מוצלח, מלא בעשייה והתקדמות אישית!", color: "text-amber-500" };
           }, [activeHabits]);
 
           const updateUserCoins = (amount) => setUsers(users.map(u => u.id === activeUserId ? { ...u, coins: Math.max(0, (u.coins || 0) + amount) } : u));
@@ -456,18 +500,19 @@
             let coinsChange = 0;
             const newHabits = activeHabits.map(h => {
               if (h.id === habitId) {
+                const amount = h.rewardAmount || 10;
                 const currStatus = h.logs[date]; const newStatus = currStatus === status ? 0 : status;
                 if (newStatus === 1 && currStatus !== 1) {
-                    coinsChange = 10;
+                    coinsChange = amount;
                     if (e) {
                         const r = e.currentTarget.getBoundingClientRect(); const id = Date.now();
-                        setFloatingCoins(p => [...p, { id, x: r.left + r.width/2, y: r.top }]);
+                        setFloatingCoins(p => [...p, { id, x: r.left + r.width/2, y: r.top, amount: amount }]);
                         setTimeout(() => setFloatingCoins(p => p.filter(c => c.id !== id)), 1000);
                     }
                     playSound('success'); 
                     const ts = getHabitStats({ ...h, logs: { ...h.logs, [date]: 1 } });
                     if (ts.streak > 0 && ts.streak % 7 === 0) triggerCelebration();
-                } else if (currStatus === 1 && newStatus !== 1) coinsChange = -10;
+                } else if (currStatus === 1 && newStatus !== 1) coinsChange = -amount;
                 return { ...h, logs: { ...h.logs, [date]: newStatus } };
               }
               return h;
@@ -536,7 +581,7 @@
 
           if (!isDataLoaded) return <div className="min-h-screen flex items-center justify-center text-indigo-500"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
 
-          const DashboardView = () => {
+          const renderDashboard = () => {
               const visibleHabits = activeHabits.filter(h => !h.isArchived);
               const archivedHabits = activeHabits.filter(h => h.isArchived);
 
@@ -549,14 +594,6 @@
                           <p className="text-slate-700 dark:text-slate-300 font-medium">{smartMessage.text}</p>
                       </div>
                   </div>
-
-                  <section className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col md:flex-row items-center justify-center gap-8 transition-colors">
-                      <div className="flex-1 text-center md:text-right">
-                          <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">עץ ההתמדה שלך</h2>
-                          <p className="text-slate-500 dark:text-slate-400">העץ צומח בהתאם לשיא ההתמדה (הרצף הארוך ביותר) שלך. <br/><span className="text-yellow-600 dark:text-yellow-500 text-sm font-bold bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded-lg inline-block mt-2"><i className="fa-solid fa-coins"></i> צבור הצלחות והרווח מטבעות לחנות!</span></p>
-                      </div>
-                      <VisualGrowthTree maxStreak={allAchievements.maxStreak} />
-                  </section>
 
                   <section>
                     <div className="flex justify-between items-center mb-6">
@@ -577,6 +614,13 @@
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {visibleHabits.map(h => {
                           const s = getHabitStats(h); const isTodayDone = h.logs[todayStr] === 1;
+                          
+                          const freqBadge = h.frequencyType === 'specific_days' 
+                            ? <span className="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 text-xs px-2 py-0.5 rounded-full font-bold">ימים נבחרים</span> 
+                            : h.frequencyType === 'weekly_target' 
+                            ? <span className="bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400 text-xs px-2 py-0.5 rounded-full font-bold">{h.weeklyTarget} בשבוע</span>
+                            : <span className="bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 text-xs px-2 py-0.5 rounded-full font-bold">יומי</span>;
+
                           return (
                             <div 
                                 key={h.id} 
@@ -591,14 +635,15 @@
                             >
                               <div className="flex justify-between items-start mb-4 relative z-10">
                                 <div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 mb-2">
                                     <i className="fa-solid fa-grip-vertical text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity mr-1"></i>
                                     <h3 className="text-xl font-bold text-slate-800 dark:text-white group-hover:text-indigo-600 transition-colors">{h.name}</h3>
-                                    {h.goalType === 'weekly' && <span className="bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded-full font-bold">יעד שבועי</span>}
                                   </div>
-                                  <div className="flex items-center gap-3 text-sm text-slate-500 mt-3">
-                                    <span className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 px-2.5 py-1 rounded-lg"><i className="fa-solid fa-circle-check"></i> סה"כ: {s.successCount}</span>
-                                    <span className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-900/30 text-orange-600 px-2.5 py-1 rounded-lg"><i className="fa-solid fa-fire"></i> רצף: {s.streak}</span>
+                                  <div className="flex flex-wrap gap-2 text-sm text-slate-500 mt-1">
+                                    {freqBadge}
+                                    <span className="flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 px-2 py-0.5 rounded-full font-bold"><i className="fa-solid fa-circle-check"></i> {s.successCount} סה"כ</span>
+                                    <span className="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/30 text-orange-600 px-2 py-0.5 rounded-full font-bold"><i className="fa-solid fa-fire"></i> {s.streak} רצף</span>
+                                    <span className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/30 text-amber-600 px-2 py-0.5 rounded-full font-bold"><i className="fa-solid fa-coins"></i> {h.rewardAmount || 10} פרס</span>
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-center gap-3">
@@ -638,11 +683,21 @@
                         </div>
                     )}
                   </section>
+
+                  {/* העץ עבר לכאן */}
+                  <section className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col md:flex-row items-center justify-center gap-8 transition-colors mt-8">
+                      <div className="flex-1 text-center md:text-right">
+                          <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">עץ ההתמדה שלך</h2>
+                          <p className="text-slate-500 dark:text-slate-400">העץ צומח בהתאם לשיא ההתמדה (הרצף הארוך ביותר) שלך. <br/><span className="text-yellow-600 dark:text-yellow-500 text-sm font-bold bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded-lg inline-block mt-2"><i className="fa-solid fa-coins"></i> צבור הצלחות והרווח מטבעות לחנות!</span></p>
+                      </div>
+                      <VisualGrowthTree maxStreak={allAchievements.maxStreak} />
+                  </section>
+
                 </div>
               );
           };
 
-          const HabitDetailView = () => {
+          const renderHabitDetail = () => {
             const activeHabit = activeHabits.find(h => h.id === activeHabitId);
             if(!activeHabit) return null;
             const s = getHabitStats(activeHabit);
@@ -698,8 +753,13 @@
                     {dateRange.map(date => {
                       const isToday = date === todayStr; const status = activeHabit.logs[date]; const isFuture = date > todayStr;
                       const hasNote = activeHabit.notes && activeHabit.notes[date] && activeHabit.notes[date].trim() !== '';
+                      let isRequired = true;
+                      if (activeHabit.frequencyType === 'specific_days') {
+                          isRequired = (activeHabit.specificDays || []).includes(new Date(date).getDay());
+                      }
+                      
                       return (
-                        <div key={date} id={`date-${date}`} className={`relative p-3 rounded-2xl border text-center transition-all flex flex-col ${isToday ? 'ring-2 ring-indigo-500 shadow-lg transform scale-[1.03] z-10 bg-white dark:bg-slate-800' : ''} ${status === 1 ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200' : status === -1 ? 'bg-red-50 dark:bg-red-900/30 border-red-100' : isFuture ? 'bg-slate-50/50 dark:bg-slate-800/50 opacity-50' : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700'}`}>
+                        <div key={date} id={`date-${date}`} className={`relative p-3 rounded-2xl border text-center transition-all flex flex-col ${!isRequired ? 'opacity-40 grayscale' : ''} ${isToday ? 'ring-2 ring-indigo-500 shadow-lg transform scale-[1.03] z-10 bg-white dark:bg-slate-800' : ''} ${status === 1 ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200' : status === -1 ? 'bg-red-50 dark:bg-red-900/30 border-red-100' : isFuture ? 'bg-slate-50/50 dark:bg-slate-800/50 opacity-50' : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700'}`}>
                           {isToday && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-md">היום</div>}
                           <div className={`text-[11px] font-bold uppercase ${isToday ? 'text-indigo-600 dark:text-indigo-400 mt-1' : 'text-slate-400'}`}>{new Date(date).toLocaleDateString('he-IL', { weekday: 'short' })}</div>
                           <div className={`text-xl font-black mb-3 ${isToday ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300'}`}>{new Date(date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })}</div>
@@ -744,7 +804,7 @@
             );
           };
 
-          const StoreView = () => (
+          const renderStore = () => (
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center mb-6">
                     <div>
@@ -803,12 +863,82 @@
               </div>
           );
 
+          const renderStats = () => {
+              let totalSuccesses = 0;
+              let totalMisses = 0;
+              let bestHabitName = "אין עדיין נתונים";
+              let bestHabitStreak = 0;
+              let overallProgress = 0;
+              let totalTrackedDays = 0;
+
+              activeHabits.forEach(h => {
+                  const s = getHabitStats(h);
+                  totalSuccesses += s.successCount;
+                  totalTrackedDays += s.totalDays;
+                  const misses = Object.values(h.logs || {}).filter(v => v === -1).length;
+                  totalMisses += misses;
+                  if (s.streak >= bestHabitStreak && s.streak > 0) {
+                      bestHabitStreak = s.streak;
+                      bestHabitName = h.name;
+                  }
+              });
+
+              if (totalTrackedDays > 0) {
+                  overallProgress = Math.round((totalSuccesses / totalTrackedDays) * 100);
+              }
+
+              return (
+                  <div className="space-y-8 animate-in fade-in duration-300">
+                      <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-3xl p-8 shadow-sm border border-slate-100 dark:border-slate-700 text-center">
+                          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl shadow-inner"><i className="fa-solid fa-chart-pie"></i></div>
+                          <h2 className="text-3xl font-black text-slate-800 dark:text-white mb-2">סטטיסטיקות ומדדים</h2>
+                          <p className="text-slate-500 dark:text-slate-400">סיכום של כלל הפעילות וההישגים שלך במערכת</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center text-center">
+                              <i className="fa-solid fa-circle-check text-emerald-500 text-3xl mb-3"></i>
+                              <div className="text-4xl font-black text-slate-800 dark:text-white mb-1">{totalSuccesses}</div>
+                              <div className="text-sm font-bold text-slate-500">הצלחות כוללות</div>
+                          </div>
+                          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center text-center">
+                              <i className="fa-solid fa-fire text-orange-500 text-3xl mb-3"></i>
+                              <div className="text-4xl font-black text-slate-800 dark:text-white mb-1">{allAchievements.maxStreak}</div>
+                              <div className="text-sm font-bold text-slate-500">שיא רצף (כללי)</div>
+                          </div>
+                          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center text-center">
+                              <i className="fa-solid fa-trophy text-amber-500 text-3xl mb-3"></i>
+                              <div className="text-2xl font-black text-slate-800 dark:text-white mb-1 leading-tight">{bestHabitName}</div>
+                              <div className="text-sm font-bold text-slate-500">ההרגל המוביל ({bestHabitStreak} ימים)</div>
+                          </div>
+                          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center text-center">
+                              <i className="fa-solid fa-percent text-indigo-500 text-3xl mb-3"></i>
+                              <div className="text-4xl font-black text-slate-800 dark:text-white mb-1">{overallProgress}%</div>
+                              <div className="text-sm font-bold text-slate-500">אחוז הצלחה כללי</div>
+                          </div>
+                      </div>
+
+                      <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-3xl p-8 shadow-sm border border-slate-100 dark:border-slate-700">
+                          <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2"><i className="fa-solid fa-list-ul text-indigo-500"></i> חלוקת הצלחות מול פספוסים</h3>
+                          <div className="flex w-full h-6 rounded-full overflow-hidden shadow-inner bg-slate-100 dark:bg-slate-700">
+                              <div style={{width: `${(totalSuccesses / Math.max(1, totalSuccesses + totalMisses)) * 100}%`}} className="bg-emerald-500 h-full transition-all duration-1000 relative"><div className="absolute inset-0 shimmer-effect opacity-30"></div></div>
+                              <div style={{width: `${(totalMisses / Math.max(1, totalSuccesses + totalMisses)) * 100}%`}} className="bg-red-400 h-full transition-all duration-1000"></div>
+                          </div>
+                          <div className="flex justify-between mt-3 text-sm font-bold">
+                              <span className="text-emerald-600"><i className="fa-solid fa-check"></i> עמידה ביעד ({totalSuccesses})</span>
+                              <span className="text-red-500"><i className="fa-solid fa-xmark"></i> פספוסים ({totalMisses})</span>
+                          </div>
+                      </div>
+                  </div>
+              );
+          };
+
           return (
             <div className="text-right text-slate-800 dark:text-slate-200 p-4 md:p-8 relative min-h-screen">
               {showOnboarding && <OnboardingModal onComplete={() => { setShowOnboarding(false); localStorage.setItem('habitsApp_onboarding', 'true'); }} />}
               
               {showConfetti && <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center overflow-hidden">{[...Array(50)].map((_, i) => (<div key={i} className="absolute w-3 h-3 rounded-sm animate-confetti" style={{ backgroundColor: ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EF4444'][Math.floor(Math.random() * 5)], left: `${50 + (Math.random() * 100 - 50)}%`, top: '50%', animationDuration: `${1 + Math.random()}s`, animationDelay: `${Math.random() * 0.2}s`, transform: `rotate(${Math.random() * 360}deg)`, '--tx': `${(Math.random() - 0.5) * 500}px`, '--ty': `${-200 - Math.random() * 300}px`, }} />))}</div>}
-              {floatingCoins.map(coin => (<div key={coin.id} className="fixed z-50 animate-float-up text-amber-500 font-black text-2xl drop-shadow-md" style={{ left: coin.x, top: coin.y }}>+10 <i className="fa-solid fa-coins text-sm"></i></div>))}
+              {floatingCoins.map(coin => (<div key={coin.id} className="fixed z-50 animate-float-up text-amber-500 font-black text-2xl drop-shadow-md" style={{ left: coin.x, top: coin.y }}>+{coin.amount} <i className="fa-solid fa-coins text-sm"></i></div>))}
               {toast && (<div className="fixed bottom-8 left-1/2 -translate-x-1/2 animate-toast flex items-center gap-3 px-6 py-3 rounded-full shadow-lg text-white font-bold text-sm" style={{backgroundColor: toast.colorClass.includes('bg-red') ? '#ef4444' : toast.colorClass.includes('bg-emerald') ? '#10b981' : '#4f46e5'}}><i className={`fa-solid ${toast.icon} text-lg`}></i> {toast.message}</div>)}
 
               <div className="max-w-5xl mx-auto">
@@ -831,6 +961,10 @@
                   </div>
                   
                   <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end overflow-x-auto pb-1 sm:pb-0">
+                    <button onClick={() => setActiveView('STATS')} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 active:scale-95 transition-all border shadow-sm hover:shadow-md ${activeView === 'STATS' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 border-blue-200 dark:border-blue-800/50' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                        <i className="fa-solid fa-chart-line"></i> <span className="hidden sm:inline">סטטיסטיקה</span>
+                    </button>
+
                     <button onClick={() => setActiveView('STORE')} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 active:scale-95 transition-all border shadow-sm hover:shadow-md ${activeView === 'STORE' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 border-amber-200 dark:border-amber-800/50' : 'bg-white dark:bg-slate-900 text-amber-500 border-amber-100 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-slate-800'}`}>
                         {activeUser.coins || 0} <i className="fa-solid fa-store"></i>
                     </button>
@@ -856,22 +990,60 @@
                   </div>
                 </nav>
 
-                {activeView === 'DASHBOARD' && <DashboardView />}
-                {activeView === 'HABIT_DETAIL' && <HabitDetailView />}
-                {activeView === 'STORE' && <StoreView />}
+                {activeView === 'DASHBOARD' && renderDashboard()}
+                {activeView === 'HABIT_DETAIL' && renderHabitDetail()}
+                {activeView === 'STORE' && renderStore()}
+                {activeView === 'STATS' && renderStats()}
 
                 {isAddingHabit && (
-                  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
+                  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700 my-8">
                       <div className="flex items-center gap-3 mb-6">
                           <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 rounded-xl flex items-center justify-center"><i className="fa-solid fa-seedling text-xl"></i></div>
                           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">יצירת הרגל חדש</h2>
                       </div>
-                      <form onSubmit={(e) => { e.preventDefault(); const id = Date.now().toString(); setHabitsByUser({ ...habitsByUser, [activeUserId]: [...activeHabits, { ...newHabit, id, logs: {}, notes: {}, isArchived: false }] }); setNewHabit({ name: '', startDate: todayStr, endDate: '', goalType: 'total', targetDays: 0 }); setIsAddingHabit(false); showToastMsg('הרגל חדש נוצר בהצלחה!', 'fa-seedling', 'bg-emerald-600'); }} className="space-y-4">
+                      <form onSubmit={(e) => { e.preventDefault(); const id = Date.now().toString(); setHabitsByUser({ ...habitsByUser, [activeUserId]: [...activeHabits, { ...newHabit, id, logs: {}, notes: {}, isArchived: false }] }); setNewHabit({ name: '', startDate: todayStr, endDate: '', frequencyType: 'daily', specificDays: [], weeklyTarget: 1, rewardAmount: 10 }); setIsAddingHabit(false); showToastMsg('הרגל חדש נוצר בהצלחה!', 'fa-seedling', 'bg-emerald-600'); }} className="space-y-4">
                         <div>
                             <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">איזה הרגל תרצה לאמץ?</label>
                             <input type="text" required placeholder="למשל: לימוד הדף היומי, הליכה..." value={newHabit.name} onChange={e => setNewHabit({...newHabit, name: e.target.value})} className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all"/>
                         </div>
+                        
+                        <div>
+                            <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">תדירות ההרגל</label>
+                            <select value={newHabit.frequencyType} onChange={e => setNewHabit({...newHabit, frequencyType: e.target.value})} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500">
+                                <option value="daily">כל יום</option>
+                                <option value="specific_days">ימים ספציפיים בשבוע</option>
+                                <option value="weekly_target">מספר פעמים בשבוע (גמיש)</option>
+                            </select>
+                        </div>
+                        
+                        {newHabit.frequencyType === 'specific_days' && (
+                            <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl">
+                                <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-2">בחר באילו ימים (סמן):</label>
+                                <div className="flex flex-row-reverse justify-end gap-2">
+                                    {['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'].map((day, idx) => {
+                                        const isSelected = newHabit.specificDays.includes(idx);
+                                        return (
+                                            <button type="button" key={idx} onClick={() => {
+                                                const currentDays = newHabit.specificDays || [];
+                                                const newDays = isSelected ? currentDays.filter(d => d !== idx) : [...currentDays, idx];
+                                                setNewHabit({...newHabit, specificDays: newDays});
+                                            }} className={`w-10 h-10 rounded-full font-bold transition-all shadow-sm ${isSelected ? 'bg-indigo-500 text-white shadow-indigo-200 dark:shadow-none transform scale-110' : 'bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>
+                                                {day}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {newHabit.frequencyType === 'weekly_target' && (
+                            <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl">
+                                <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">כמה פעמים בשבוע (גמיש)?</label>
+                                <input type="number" min="1" max="7" value={newHabit.weeklyTarget} onChange={e => setNewHabit({...newHabit, weeklyTarget: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500"/>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">מתאריך</label>
@@ -882,6 +1054,12 @@
                                 <input type="date" required value={newHabit.endDate} onChange={e => setNewHabit({...newHabit, endDate: e.target.value})} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500"/>
                             </div>
                         </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">מטבעות לכל ביצוע בהצלחה</label>
+                            <input type="number" required min="1" value={newHabit.rewardAmount} onChange={e => setNewHabit({...newHabit, rewardAmount: parseInt(e.target.value) || 0})} className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500"/>
+                        </div>
+                        
                         <div className="flex gap-3 pt-6">
                           <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-4 rounded-2xl hover:from-indigo-700 hover:to-purple-700 shadow-md active:scale-95 transition-all text-lg">שמור הרגל</button>
                           <button type="button" onClick={() => setIsAddingHabit(false)} className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-6 font-bold py-4 rounded-2xl hover:bg-slate-200 active:scale-95 transition-all">ביטול</button>
