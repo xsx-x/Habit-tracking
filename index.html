@@ -101,7 +101,6 @@
             measurementId: "G-2DE18VWV7G"
         };
 
-        // הפיקוח שמונע שגיאות 404 בגין רווחים נסתרים שהועתקו בטעות למפתחות
         const cleanConfig = {};
         for (const key in myFirebaseConfig) {
             cleanConfig[key] = typeof myFirebaseConfig[key] === 'string' 
@@ -121,34 +120,14 @@
             if (configToUse && configToUse.apiKey) {
                 app = initializeApp(configToUse);
                 auth = getAuth(app);
-                
-                // הוספת מעקף הסינון (Long Polling)
                 db = initializeFirestore(app, {
                     experimentalForceLongPolling: true
                 });
-                
                 isCloudEnabled = true;
             }
         } catch (e) {
             console.error("שגיאה בהפעלת Firebase:", e);
         }
-
-        // --- Helper Functions & Mock Data ---
-        const generateMockData = () => {
-          const today = new Date();
-          const getDateStr = (daysAgo) => {
-            const d = new Date(today); d.setDate(d.getDate() - daysAgo); return d.toISOString().split('T')[0];
-          };
-          const dafYomiLogs = {}; const dafYomiNotes = {};
-          for(let i=0; i<45; i++) { if (i !== 5 && i !== 12) dafYomiLogs[getDateStr(i)] = 1; else dafYomiLogs[getDateStr(i)] = -1; }
-          dafYomiNotes[getDateStr(1)] = "היה שיעור מרתק בבבא קמא!";
-          const walkLogs = {}; for(let i=0; i<10; i++) { if (i < 7) walkLogs[getDateStr(i)] = 1; else walkLogs[getDateStr(i)] = -1; }
-          
-          return [
-            { id: 'mock-1', name: 'לימוד תורה יומי', startDate: getDateStr(45), endDate: getDateStr(-300), goalType: 'total', targetDays: 300, logs: dafYomiLogs, notes: dafYomiNotes, isArchived: false },
-            { id: 'mock-2', name: 'הליכה בטבע', startDate: getDateStr(10), endDate: getDateStr(-20), goalType: 'total', targetDays: 25, logs: walkLogs, notes: {}, isArchived: false }
-          ];
-        };
 
         const generateDefaultUsers = () => [{ id: 'user-default', name: 'הפרופיל שלי', avatar: 'fa-user', coins: 150 }];
         const defaultRewards = [
@@ -156,7 +135,6 @@
             { id: 'r2', title: 'כוס קפה מיוחדת', cost: 100 }
         ];
 
-        // --- Sound Effects ---
         const playSound = (type) => {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -174,7 +152,6 @@
             } catch(e) {}
         };
 
-        // --- Components ---
         const OnboardingModal = ({ onComplete }) => (
             <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
                 <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl max-w-md w-full p-8 text-center animate-in zoom-in-95 duration-500 border border-slate-100 dark:border-slate-700 relative overflow-hidden">
@@ -253,14 +230,16 @@
           const [isDarkMode, setIsDarkMode] = useState(false);
           const [showConfetti, setShowConfetti] = useState(false);
           const [isDataLoaded, setIsDataLoaded] = useState(false);
-          const [showOnboarding, setShowOnboarding] = useState(false);
           
+          // --- מנעול למניעת דריסת נתונים מהענן ---
+          const [isCloudDataLoaded, setIsCloudDataLoaded] = useState(false);
+          
+          const [showOnboarding, setShowOnboarding] = useState(false);
           const [toast, setToast] = useState(null); 
           const [floatingCoins, setFloatingCoins] = useState([]);
           const [showArchived, setShowArchived] = useState(false);
           const [editingNote, setEditingNote] = useState(null);
           
-          // Cloud Auth States
           const [authUser, setAuthUser] = useState(null);
           const [isCloudSyncing, setIsCloudSyncing] = useState(false);
           const [showAuthModal, setShowAuthModal] = useState(false);
@@ -275,7 +254,7 @@
           const [newUserName, setNewUserName] = useState('');
           const [newReward, setNewReward] = useState({ title: '', cost: 100 });
 
-          // 1. Initialize Local Storage Data (Offline First)
+          // 1. חילוץ מהזיכרון המקומי (פועל ראשון)
           useEffect(() => {
             const hasSeenOnboarding = localStorage.getItem('habitsApp_onboarding');
             if (!hasSeenOnboarding) setShowOnboarding(true);
@@ -303,14 +282,20 @@
             setIsDataLoaded(true);
           }, []);
 
-          // 2. Initialize Firebase Auth
+          // 2. האזנה לחיבור המשתמש ב-Firebase
           useEffect(() => {
               if (!isCloudEnabled || !auth) return;
-              const unsubscribe = onAuthStateChanged(auth, (user) => setAuthUser(user));
+              const unsubscribe = onAuthStateChanged(auth, (user) => {
+                  setAuthUser(user);
+                  if (!user) {
+                      // איפוס המנעול כאשר מתנתקים
+                      setIsCloudDataLoaded(false);
+                  }
+              });
               return () => unsubscribe();
           }, []);
 
-          // 3. Cloud Sync Listeners (Firestore -> React)
+          // 3. משיכת נתונים מהענן (קורה מיד אחרי שהמשתמש מתחבר)
           useEffect(() => {
               if (!isCloudEnabled || !authUser || !db || !isDataLoaded) return;
               setIsCloudSyncing(true);
@@ -329,9 +314,14 @@
                           else document.documentElement.classList.remove('dark');
                       }
                   }
+                  
+                  // 🔥 פתיחת המנעול - עכשיו המערכת יודעת שהנתונים מהענן ירדו בשלמותם! 🔥
+                  setIsCloudDataLoaded(true);
+                  
               }, (err) => {
                   console.error("Sync error", err);
                   setIsCloudSyncing(false);
+                  setIsCloudDataLoaded(true); // משחרר את המנעול כדי שהמשתמש יוכל לעבוד במקרה של שגיאה זמנית
               });
               return () => unsubscribe();
           }, [authUser, isDataLoaded]);
@@ -341,7 +331,7 @@
               setTimeout(() => setToast(null), 3000);
           };
 
-          // 4. Save to Local Storage & Cloud (React -> Storage/Firestore)
+          // 4. שמירה מקומית ולענן (מופעל בכל שינוי בנתונים)
           useEffect(() => {
             if (!isDataLoaded) return;
             localStorage.setItem('habitsApp_users', JSON.stringify(users));
@@ -352,7 +342,8 @@
             if (isDarkMode) document.documentElement.classList.add('dark');
             else document.documentElement.classList.remove('dark');
 
-            if (isCloudEnabled && authUser && db) {
+            // 🔥 התיקון הקריטי: שומר לענן רק אם משתנה ה-isCloudDataLoaded פתוח! 🔥
+            if (isCloudEnabled && authUser && db && isCloudDataLoaded) {
                 const docRef = doc(db, 'artifacts', currentAppId, 'users', authUser.uid, 'appData', 'main');
                 setIsCloudSyncing(true);
                 setDoc(docRef, { users, habitsByUser, rewardsByUser, isDarkMode, lastUpdated: new Date().toISOString() }, { merge: true })
@@ -360,15 +351,11 @@
                     .catch((err) => {
                         console.error("Firestore Save Error:", err);
                         setIsCloudSyncing(false);
-                        if (err.code === 'permission-denied') {
-                            showToastMsg('הנתונים לא נשמרו בענן: שגיאת הרשאות ב-Firestore', 'fa-shield-halved', 'bg-red-600');
-                        }
                     });
             }
-          }, [users, habitsByUser, rewardsByUser, activeUserId, isDarkMode, isDataLoaded, authUser, db]);
+          }, [users, habitsByUser, rewardsByUser, activeUserId, isDarkMode, isDataLoaded, authUser, db, isCloudDataLoaded]);
 
 
-          // --- Authentication Actions ---
           const handleEmailAuth = async (e) => {
               e.preventDefault();
               if(!auth) return showToastMsg('הענן אינו מוגדר', 'fa-cloud-xmark', 'bg-red-500');
@@ -388,7 +375,6 @@
                   setAuthEmail('');
                   setAuthPassword('');
               } catch (error) {
-                  console.error(error);
                   let msg = 'שגיאה בהתחברות';
                   if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') msg = 'אימייל או סיסמה שגויים';
                   if (error.code === 'auth/email-already-in-use') msg = 'האימייל כבר קיים במערכת';
@@ -403,7 +389,6 @@
               showToastMsg('התנתקת מהחשבון', 'fa-right-from-bracket', 'bg-indigo-500');
           };
 
-          // --- App Logic ---
           const activeUser = users.find(u => u.id === activeUserId) || users[0] || {};
           const activeHabits = activeUserId ? (habitsByUser[activeUserId] || []) : [];
           const activeRewards = activeUserId ? (rewardsByUser[activeUserId] || defaultRewards) : defaultRewards;
@@ -469,7 +454,6 @@
 
           const toggleLog = (habitId, date, status, e = null) => {
             let coinsChange = 0;
-            let playedSound = false;
             const newHabits = activeHabits.map(h => {
               if (h.id === habitId) {
                 const currStatus = h.logs[date]; const newStatus = currStatus === status ? 0 : status;
@@ -480,7 +464,7 @@
                         setFloatingCoins(p => [...p, { id, x: r.left + r.width/2, y: r.top }]);
                         setTimeout(() => setFloatingCoins(p => p.filter(c => c.id !== id)), 1000);
                     }
-                    playSound('success'); playedSound = true;
+                    playSound('success'); 
                     const ts = getHabitStats({ ...h, logs: { ...h.logs, [date]: 1 } });
                     if (ts.streak > 0 && ts.streak % 7 === 0) triggerCelebration();
                 } else if (currStatus === 1 && newStatus !== 1) coinsChange = -10;
@@ -508,7 +492,6 @@
               setEditingNote(null);
           };
 
-          // --- Store Logic ---
           const addReward = (e) => {
               e.preventDefault();
               if (!newReward.title.trim()) return;
@@ -528,46 +511,29 @@
               }
           };
 
-          // --- Drag and Drop Logic ---
-          const handleDragStart = (e, id) => {
-              e.dataTransfer.setData('text/plain', id);
-              e.currentTarget.style.opacity = '0.4';
-          };
-          const handleDragEnd = (e) => {
-              e.currentTarget.style.opacity = '1';
-              e.currentTarget.classList.remove('drag-over');
-          };
-          const handleDragOver = (e) => {
-              e.preventDefault(); e.currentTarget.classList.add('drag-over');
-          };
-          const handleDragLeave = (e) => {
-              e.currentTarget.classList.remove('drag-over');
-          };
+          const handleDragStart = (e, id) => { e.dataTransfer.setData('text/plain', id); e.currentTarget.style.opacity = '0.4'; };
+          const handleDragEnd = (e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.classList.remove('drag-over'); };
+          const handleDragOver = (e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); };
+          const handleDragLeave = (e) => { e.currentTarget.classList.remove('drag-over'); };
           const handleDrop = (e, targetId) => {
               e.preventDefault(); e.currentTarget.classList.remove('drag-over');
               const draggedId = e.dataTransfer.getData('text/plain');
               if (draggedId === targetId) return;
-
               const allUserHabits = [...activeHabits];
               const draggedIdx = allUserHabits.findIndex(h => h.id === draggedId);
               const targetIdx = allUserHabits.findIndex(h => h.id === targetId);
               if (draggedIdx === -1 || targetIdx === -1) return;
-
               const [draggedHabit] = allUserHabits.splice(draggedIdx, 1);
               allUserHabits.splice(targetIdx, 0, draggedHabit);
-              
               setHabitsByUser({ ...habitsByUser, [activeUserId]: allUserHabits });
           };
 
           const getHeatmapDays = useMemo(() => {
               const days = [];
-              for(let i=364; i>=0; i--) {
-                  const d = new Date(); d.setDate(d.getDate() - i); days.push(d.toISOString().split('T')[0]);
-              }
+              for(let i=364; i>=0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d.toISOString().split('T')[0]); }
               return days;
           }, []);
 
-          // --- Sub-Views ---
           if (!isDataLoaded) return <div className="min-h-screen flex items-center justify-center text-indigo-500"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
 
           const DashboardView = () => {
@@ -650,7 +616,6 @@
                       </div>
                     )}
 
-                    {/* Archive Section */}
                     {archivedHabits.length > 0 && (
                         <div className="mt-8">
                             <button onClick={() => setShowArchived(!showArchived)} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold transition-colors">
@@ -742,7 +707,6 @@
                             <button onClick={(e) => !isFuture && toggleLog(activeHabit.id, date, 1, e)} disabled={isFuture} className={`p-2.5 rounded-xl flex-1 transition-all active:scale-90 ${status === 1 ? 'bg-emerald-500 text-white shadow-md' : isFuture ? 'bg-slate-100 dark:bg-slate-800 text-transparent' : 'bg-white dark:bg-slate-700 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50'}`}><i className="fa-solid fa-check text-lg"></i></button>
                             <button onClick={(e) => !isFuture && toggleLog(activeHabit.id, date, -1, e)} disabled={isFuture} className={`p-2.5 rounded-xl flex-1 transition-all active:scale-90 ${status === -1 ? 'bg-red-500 text-white shadow-md' : isFuture ? 'bg-slate-100 dark:bg-slate-800 text-transparent' : 'bg-white dark:bg-slate-700 text-slate-300 hover:text-red-500 hover:bg-red-50'}`}><i className="fa-solid fa-xmark text-lg"></i></button>
                           </div>
-                          {/* Note Button */}
                           {!isFuture && (
                               <button 
                                 onClick={() => setEditingNote({ habitId: activeHabit.id, date, text: (activeHabit.notes && activeHabit.notes[date]) || '' })}
@@ -848,13 +812,11 @@
               {toast && (<div className="fixed bottom-8 left-1/2 -translate-x-1/2 animate-toast flex items-center gap-3 px-6 py-3 rounded-full shadow-lg text-white font-bold text-sm" style={{backgroundColor: toast.colorClass.includes('bg-red') ? '#ef4444' : toast.colorClass.includes('bg-emerald') ? '#10b981' : '#4f46e5'}}><i className={`fa-solid ${toast.icon} text-lg`}></i> {toast.message}</div>)}
 
               <div className="max-w-5xl mx-auto">
-                {/* Navbar */}
                 <nav className="flex flex-col sm:flex-row justify-between items-center mb-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors gap-4 sticky top-4 z-40">
                   <div className="flex items-center gap-3 w-full sm:w-auto">
                     <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-12 h-12 flex items-center justify-center rounded-2xl text-white shadow-lg shadow-indigo-200 dark:shadow-none"><i className="fa-solid fa-trophy text-xl"></i></div>
                     <h1 className="text-2xl font-black tracking-tight cursor-pointer hover:text-indigo-600 transition-colors" onClick={()=>setActiveView('DASHBOARD')}>הרגלים טובים</h1>
                     
-                    {/* Cloud Auth Status */}
                     {isCloudEnabled && (
                         <div className="mr-4 flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                             {isCloudSyncing ? <i className="fa-solid fa-arrows-rotate fa-spin text-indigo-500" title="מסנכרן לענן..."></i> : <i className="fa-solid fa-cloud-check text-emerald-500" title="מעודכן לענן"></i>}
@@ -898,7 +860,6 @@
                 {activeView === 'HABIT_DETAIL' && <HabitDetailView />}
                 {activeView === 'STORE' && <StoreView />}
 
-                {/* Modal: Add New Habit */}
                 {isAddingHabit && (
                   <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
@@ -930,7 +891,6 @@
                   </div>
                 )}
 
-                {/* Modal: Note Editor */}
                 {editingNote && (
                     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200">
@@ -953,7 +913,6 @@
                     </div>
                 )}
 
-                {/* Modal: Email/Password Auth */}
                 {showAuthModal && (
                     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
@@ -987,7 +946,6 @@
                     </div>
                 )}
                 
-                {/* Modal: Add Local User */}
                 {showUserModal && (
                     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200">
