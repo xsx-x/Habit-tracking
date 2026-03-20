@@ -78,15 +78,15 @@
         .drag-over { border: 2px dashed #6366f1 !important; transform: scale(1.02); }
     </style>
 </head>
-<body class="transition-colors duration-500 min-h-screen">
-    <div id="root"></div>
+<body class="transition-colors duration-500 min-h-screen flex flex-col">
+    <div id="root" class="flex-grow"></div>
 
     <script type="text/babel" data-type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { initializeFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const { useState, useEffect, useMemo, useRef } = React;
+        const { useState, useEffect, useMemo } = React;
 
         // ------------------------------------------------------------------------
         // 🔥 הגדרות חיבור לענן (Firebase) 🔥
@@ -197,22 +197,31 @@
             </div>
         );
 
-        const VisualGrowthTree = ({ maxStreak }) => {
+        const VisualGrowthTree = ({ growthScore }) => {
             let icon = 'fa-seedling'; let color = 'text-slate-400'; let bg = 'bg-slate-100 dark:bg-slate-800';
-            let title = 'זרע התחלה'; let size = 'text-3xl'; let glow = '';
-            if (maxStreak >= 30) { icon = 'fa-tree'; color = 'text-amber-400'; bg = 'bg-amber-100 dark:bg-amber-900/40'; title = 'עץ זהב מואר!'; size = 'text-6xl'; glow = 'drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]'; }
-            else if (maxStreak >= 15) { icon = 'fa-tree'; color = 'text-emerald-600'; bg = 'bg-emerald-100 dark:bg-emerald-900/40'; title = 'עץ חזק ויציב'; size = 'text-5xl'; }
-            else if (maxStreak >= 7) { icon = 'fa-tree'; color = 'text-emerald-500'; bg = 'bg-emerald-50 dark:bg-emerald-900/20'; title = 'עץ צומח'; size = 'text-4xl'; }
-            else if (maxStreak >= 3) { icon = 'fa-leaf'; color = 'text-green-500'; bg = 'bg-green-50 dark:bg-green-900/20'; title = 'שתיל צעיר'; size = 'text-3xl'; }
-            else if (maxStreak >= 1) { icon = 'fa-seedling'; color = 'text-green-400'; bg = 'bg-green-50 dark:bg-green-900/10'; title = 'נבט ראשון'; size = 'text-3xl'; }
+            let title = 'זרע רדום'; let size = 'text-3xl'; let glow = '';
+            
+            if (growthScore >= 4000) { icon = 'fa-tree'; color = 'text-yellow-300'; bg = 'bg-yellow-900/40'; title = 'עץ אגדי (שנה!)'; size = 'text-7xl'; glow = 'drop-shadow-[0_0_30px_rgba(253,224,71,1)] animate-pulse'; }
+            else if (growthScore >= 2500) { icon = 'fa-tree'; color = 'text-cyan-400'; bg = 'bg-cyan-900/40'; title = 'עץ יהלום'; size = 'text-6xl'; glow = 'drop-shadow-[0_0_20px_rgba(34,211,238,0.8)]'; }
+            else if (growthScore >= 1500) { icon = 'fa-tree'; color = 'text-indigo-400'; bg = 'bg-indigo-900/40'; title = 'עץ קסום (חצי שנה!)'; size = 'text-6xl'; glow = 'drop-shadow-[0_0_15px_rgba(129,140,248,0.8)]'; }
+            else if (growthScore >= 1000) { icon = 'fa-tree'; color = 'text-purple-500'; bg = 'bg-purple-900/30'; title = 'עץ עתיק'; size = 'text-6xl'; glow = 'drop-shadow-[0_0_10px_rgba(168,85,247,0.6)]'; }
+            else if (growthScore >= 750) { icon = 'fa-tree'; color = 'text-red-500'; bg = 'bg-red-900/20'; title = 'עץ חסון'; size = 'text-6xl'; }
+            else if (growthScore >= 500) { icon = 'fa-tree'; color = 'text-orange-500'; bg = 'bg-orange-900/20'; title = 'עץ פרי'; size = 'text-5xl'; }
+            else if (growthScore >= 350) { icon = 'fa-tree'; color = 'text-amber-500'; bg = 'bg-amber-900/20'; title = 'עץ פורח'; size = 'text-5xl'; }
+            else if (growthScore >= 200) { icon = 'fa-tree'; color = 'text-emerald-700 dark:text-emerald-400'; bg = 'bg-emerald-900/30'; title = 'עץ צעיר'; size = 'text-5xl'; }
+            else if (growthScore >= 100) { icon = 'fa-tree'; color = 'text-emerald-600'; bg = 'bg-emerald-100 dark:bg-emerald-900/40'; title = 'עץ ננסי'; size = 'text-4xl'; }
+            else if (growthScore >= 50) { icon = 'fa-tree'; color = 'text-emerald-500'; bg = 'bg-emerald-50 dark:bg-emerald-900/20'; title = 'שתיל יציב'; size = 'text-4xl'; }
+            else if (growthScore >= 25) { icon = 'fa-tree'; color = 'text-green-500'; bg = 'bg-green-50 dark:bg-green-900/20'; title = 'שתיל צעיר'; size = 'text-3xl'; }
+            else if (growthScore >= 10) { icon = 'fa-leaf'; color = 'text-green-400'; bg = 'bg-green-50 dark:bg-green-900/10'; title = 'נבט מתפתח'; size = 'text-3xl'; }
+            else if (growthScore >= 1) { icon = 'fa-seedling'; color = 'text-green-300'; bg = 'bg-green-50 dark:bg-green-900/10'; title = 'נבט ראשון'; size = 'text-2xl'; }
 
             return (
                 <div className="flex flex-col items-center justify-center p-4">
-                    <div className={`w-24 h-24 rounded-full flex items-center justify-center transition-all duration-1000 ${bg}`}>
+                    <div className={`w-32 h-32 rounded-full flex items-center justify-center transition-all duration-1000 ${bg}`}>
                         <i className={`fa-solid ${icon} ${color} ${size} ${glow} transition-all duration-1000 transform hover:scale-110`}></i>
                     </div>
-                    <h3 className="mt-3 font-bold text-slate-700 dark:text-slate-200">{title}</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">שיא רצף: {maxStreak} ימים</p>
+                    <h3 className="mt-4 font-black text-xl text-slate-800 dark:text-slate-100">{title}</h3>
+                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">נקודות צמיחה: {growthScore}</p>
                 </div>
             );
         };
@@ -252,6 +261,18 @@
           const [showUserModal, setShowUserModal] = useState(false);
           const [newUserName, setNewUserName] = useState('');
           const [newReward, setNewReward] = useState({ title: '', cost: 100 });
+
+          // גלילה אוטומטית ליומן ההרגל (נפתר באג המסך הלבן!)
+          useEffect(() => {
+              if (activeView === 'HABIT_DETAIL' && activeHabitId) {
+                  setTimeout(() => {
+                      const todayEl = document.getElementById(`date-${todayStr}`);
+                      if (todayEl) {
+                          todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }
+                  }, 100);
+              }
+          }, [activeView, activeHabitId]);
 
           // 1. חילוץ מהזיכרון המקומי
           useEffect(() => {
@@ -465,9 +486,35 @@
 
           const allAchievements = useMemo(() => {
             let maxStreak = 0;
-            activeHabits.forEach(h => { if(!h.isArchived) { const s = getHabitStats(h); if (s.streak > maxStreak) maxStreak = s.streak; } });
-            return { maxStreak };
-          }, [activeHabits]);
+            let growthScore = 0;
+            
+            // שימוש בכל ההרגלים (גם אלו שבארכיון) כדי שהעץ לא יאבד נקודות!
+            const allUserHabits = habitsByUser[activeUserId] || [];
+            
+            allUserHabits.forEach(h => {
+                const s = getHabitStats(h);
+                
+                // 1. נקודות בסיס: 1 על כל סימון הצלחה
+                growthScore += s.successCount;
+                
+                // 2. מומנטום: בונוס על רצף פעיל (מעל יום אחד)
+                if (s.streak > 1) {
+                    growthScore += (s.streak - 1);
+                }
+                
+                // 3. בונוס יעד: 20 נקודות אם הגענו ל-100% יעד כולל
+                if (s.progress >= 100 && s.totalDays > 1) {
+                    growthScore += 20;
+                }
+                
+                // שמירת שיא הרצף לטובת הסטטיסטיקות
+                if (!h.isArchived && s.streak > maxStreak) {
+                    maxStreak = s.streak;
+                }
+            });
+            
+            return { maxStreak, growthScore };
+          }, [habitsByUser, activeUserId]);
 
           const smartMessage = useMemo(() => {
               const visibleHabits = activeHabits.filter(h => !h.isArchived);
@@ -579,7 +626,7 @@
               return days;
           }, []);
 
-          if (!isDataLoaded) return <div className="min-h-screen flex items-center justify-center text-indigo-500"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
+          if (!isDataLoaded) return <div className="flex-grow flex items-center justify-center text-indigo-500"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
 
           const renderDashboard = () => {
               const visibleHabits = activeHabits.filter(h => !h.isArchived);
@@ -684,15 +731,13 @@
                     )}
                   </section>
 
-                  {/* העץ עבר לכאן */}
                   <section className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col md:flex-row items-center justify-center gap-8 transition-colors mt-8">
                       <div className="flex-1 text-center md:text-right">
                           <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">עץ ההתמדה שלך</h2>
-                          <p className="text-slate-500 dark:text-slate-400">העץ צומח בהתאם לשיא ההתמדה (הרצף הארוך ביותר) שלך. <br/><span className="text-yellow-600 dark:text-yellow-500 text-sm font-bold bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded-lg inline-block mt-2"><i className="fa-solid fa-coins"></i> צבור הצלחות והרווח מטבעות לחנות!</span></p>
+                          <p className="text-slate-500 dark:text-slate-400">העץ ניזון עכשיו מ<strong className="text-indigo-500">מדד צמיחה הוליסטי</strong> המשלב את כל ההרגלים שלך יחד! כל התמדה מעניקה נקודות בסיס, רצפים פעילים מכפילים את הכוח, ועמידה ביעדים נותנת בונוסים גדולים.</p>
                       </div>
-                      <VisualGrowthTree maxStreak={allAchievements.maxStreak} />
+                      <VisualGrowthTree growthScore={allAchievements.growthScore} />
                   </section>
-
                 </div>
               );
           };
@@ -703,7 +748,6 @@
             const s = getHabitStats(activeHabit);
             const dateRange = []; let curr = new Date(activeHabit.startDate); const end = new Date(activeHabit.endDate); let count = 0;
             while (curr <= end && count < 365 * 2) { dateRange.push(curr.toISOString().split('T')[0]); curr.setDate(curr.getDate() + 1); count++; }
-            useEffect(() => { const todayEl = document.getElementById(`date-${todayStr}`); if (todayEl) todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, []);
 
             return (
               <div className="space-y-6 animate-in slide-in-from-left duration-300">
@@ -895,11 +939,16 @@
                           <p className="text-slate-500 dark:text-slate-400">סיכום של כלל הפעילות וההישגים שלך במערכת</p>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                           <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center text-center">
                               <i className="fa-solid fa-circle-check text-emerald-500 text-3xl mb-3"></i>
                               <div className="text-4xl font-black text-slate-800 dark:text-white mb-1">{totalSuccesses}</div>
                               <div className="text-sm font-bold text-slate-500">הצלחות כוללות</div>
+                          </div>
+                          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center text-center">
+                              <i className="fa-solid fa-leaf text-indigo-500 text-3xl mb-3"></i>
+                              <div className="text-4xl font-black text-slate-800 dark:text-white mb-1">{allAchievements.growthScore}</div>
+                              <div className="text-sm font-bold text-slate-500">נקודות צמיחה (העץ)</div>
                           </div>
                           <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center text-center">
                               <i className="fa-solid fa-fire text-orange-500 text-3xl mb-3"></i>
@@ -933,15 +982,85 @@
               );
           };
 
+          const renderAbout = () => {
+              return (
+                  <div className="space-y-8 animate-in fade-in duration-500 max-w-4xl mx-auto">
+                      <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl p-10 text-center shadow-xl text-white relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none transform translate-x-1/2 -translate-y-1/2"></div>
+                          <h1 className="text-4xl font-black mb-4 relative z-10">ברוכים הבאים ל"הרגלים טובים"</h1>
+                          <p className="text-indigo-100 text-lg relative z-10">הפלטפורמה החכמה ביותר לבניית שגרת חיים מנצחת, התמדה לאורך זמן והשגת יעדים.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-3xl p-8 shadow-sm border border-slate-100 dark:border-slate-700">
+                              <div className="w-14 h-14 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl mb-4"><i className="fa-solid fa-brain"></i></div>
+                              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">למה דווקא כאן?</h3>
+                              <p className="text-slate-600 dark:text-slate-300 leading-relaxed">המוח האנושי בנוי לתגמל אותנו על הישגים מיידיים. המערכת שלנו רותמת את המדע הזה לטובתכם! דרך "מטבעות הצלחה" קטנים ורצפי ניצחונות שמצמיחים עץ וירטואלי, המוח שלכם מתרגל לקבל סיפוק מהתמדה בהרגלים ארוכי טווח שמקדמים אתכם בחיים.</p>
+                          </div>
+                          
+                          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-3xl p-8 shadow-sm border border-slate-100 dark:border-slate-700">
+                              <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl mb-4"><i className="fa-solid fa-cloud-arrow-up"></i></div>
+                              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">גיבוי סנכרון בענן</h3>
+                              <p className="text-slate-600 dark:text-slate-300 leading-relaxed">המערכת תומכת בפרופילים מקומיים וביצירת חשבון מאובטח בחינם. ברגע שתיצרו חשבון, כל ההרגלים, המטבעות ורצפי ההתמדה שלכם יגובו אוטומטית. תוכלו לגשת אליהם מכל מכשיר, בכל זמן, ללא חשש לאיבוד נתונים.</p>
+                          </div>
+                      </div>
+
+                      <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-3xl p-8 shadow-sm border border-slate-100 dark:border-slate-700">
+                          <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 border-b border-slate-100 dark:border-slate-700 pb-4">איך זה עובד?</h3>
+                          <div className="space-y-6">
+                              <div className="flex items-start gap-4">
+                                  <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 font-black flex items-center justify-center shrink-0">1</div>
+                                  <div>
+                                      <h4 className="font-bold text-slate-800 dark:text-white">מוסיפים הרגל חדש</h4>
+                                      <p className="text-slate-600 dark:text-slate-400 mt-1">לוחצים על "הרגל חדש" ובוחרים את סוג ההרגל (יומי, ימים מסוימים בשבוע, או מספר פעמים גמיש). קובעים כמה מטבעות רוצים להרוויח על כל ביצוע.</p>
+                                  </div>
+                              </div>
+                              <div className="flex items-start gap-4">
+                                  <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 font-black flex items-center justify-center shrink-0">2</div>
+                                  <div>
+                                      <h4 className="font-bold text-slate-800 dark:text-white">מסמנים הצלחות (ומרוויחים!)</h4>
+                                      <p className="text-slate-600 dark:text-slate-400 mt-1">בכל יום שנכנסים, מסמנים ב"וי" ירוק את ההרגלים שבוצעו. מיד שומעים צליל הצלחה, רואים את המטבעות מצטברים בקופה, ורצף ההתמדה גדל.</p>
+                                  </div>
+                              </div>
+                              <div className="flex items-start gap-4">
+                                  <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 font-black flex items-center justify-center shrink-0">3</div>
+                                  <div>
+                                      <h4 className="font-bold text-slate-800 dark:text-white">מצמיחים את עץ ההתמדה החכם</h4>
+                                      <p className="text-slate-600 dark:text-slate-400 mt-1">העץ שלכם משקף את "מדד הצמיחה" הכללי שלכם: כל הישג בכל הרגל שווה נקודה. שמרתם על רצף? הוספתם לעצמכם נקודות בונוס! הגעתם ליעד ההרגל? קיבלתם בונוס ענק! ככל שהמדד גדל, העץ הופך מזרע קטן ועד לעץ אגדי וקסום.</p>
+                                  </div>
+                              </div>
+                              <div className="flex items-start gap-4">
+                                  <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 font-black flex items-center justify-center shrink-0">4</div>
+                                  <div>
+                                      <h4 className="font-bold text-slate-800 dark:text-white">קונים פרסים בחנות</h4>
+                                      <p className="text-slate-600 dark:text-slate-400 mt-1">נכנסים לדף ה"חנות" (סמל של חנות למעלה) וקונים פרסים אמיתיים שהגדרתם לעצמכם מראש (כגון: "קניית ספר", "שעת מנוחה", וכו') באמצעות המטבעות שהרווחתם בעמל כפיכם.</p>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+
+                      <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-3xl p-8 shadow-sm border border-indigo-100 dark:border-indigo-800/30">
+                          <h3 className="text-xl font-bold text-indigo-800 dark:text-indigo-300 mb-4 flex items-center gap-2"><i className="fa-solid fa-lightbulb"></i> רעיונות לשימוש במערכת</h3>
+                          <ul className="list-disc list-inside text-indigo-700 dark:text-indigo-200 space-y-2 pr-2 font-medium">
+                              <li>לימוד קבוע: דף יומי, לימוד הלכה בכל ערב.</li>
+                              <li>בריאות: הליכה של 20 דקות, אימון כושר, שתיית 8 כוסות מים.</li>
+                              <li>משפחה וחברה: שיחת טלפון להורים, זמן איכות נקי ממסכים.</li>
+                              <li>רוחניות: תפילה בכוונה, נתינת צדקה, קריאת פרק תהילים.</li>
+                          </ul>
+                      </div>
+                  </div>
+              );
+          };
+
           return (
-            <div className="text-right text-slate-800 dark:text-slate-200 p-4 md:p-8 relative min-h-screen">
+            <div className="flex flex-col flex-grow text-right text-slate-800 dark:text-slate-200 p-4 md:p-8 relative">
               {showOnboarding && <OnboardingModal onComplete={() => { setShowOnboarding(false); localStorage.setItem('habitsApp_onboarding', 'true'); }} />}
               
               {showConfetti && <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center overflow-hidden">{[...Array(50)].map((_, i) => (<div key={i} className="absolute w-3 h-3 rounded-sm animate-confetti" style={{ backgroundColor: ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EF4444'][Math.floor(Math.random() * 5)], left: `${50 + (Math.random() * 100 - 50)}%`, top: '50%', animationDuration: `${1 + Math.random()}s`, animationDelay: `${Math.random() * 0.2}s`, transform: `rotate(${Math.random() * 360}deg)`, '--tx': `${(Math.random() - 0.5) * 500}px`, '--ty': `${-200 - Math.random() * 300}px`, }} />))}</div>}
               {floatingCoins.map(coin => (<div key={coin.id} className="fixed z-50 animate-float-up text-amber-500 font-black text-2xl drop-shadow-md" style={{ left: coin.x, top: coin.y }}>+{coin.amount} <i className="fa-solid fa-coins text-sm"></i></div>))}
               {toast && (<div className="fixed bottom-8 left-1/2 -translate-x-1/2 animate-toast flex items-center gap-3 px-6 py-3 rounded-full shadow-lg text-white font-bold text-sm" style={{backgroundColor: toast.colorClass.includes('bg-red') ? '#ef4444' : toast.colorClass.includes('bg-emerald') ? '#10b981' : '#4f46e5'}}><i className={`fa-solid ${toast.icon} text-lg`}></i> {toast.message}</div>)}
 
-              <div className="max-w-5xl mx-auto">
+              <div className="max-w-5xl mx-auto w-full flex-grow">
                 <nav className="flex flex-col sm:flex-row justify-between items-center mb-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors gap-4 sticky top-4 z-40">
                   <div className="flex items-center gap-3 w-full sm:w-auto">
                     <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-12 h-12 flex items-center justify-center rounded-2xl text-white shadow-lg shadow-indigo-200 dark:shadow-none"><i className="fa-solid fa-trophy text-xl"></i></div>
@@ -961,6 +1080,10 @@
                   </div>
                   
                   <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end overflow-x-auto pb-1 sm:pb-0">
+                    <button onClick={() => setActiveView('ABOUT')} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 active:scale-95 transition-all border shadow-sm hover:shadow-md ${activeView === 'ABOUT' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 border-emerald-200 dark:border-emerald-800/50' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                        <i className="fa-solid fa-circle-info"></i> <span className="hidden sm:inline">אודות</span>
+                    </button>
+                    
                     <button onClick={() => setActiveView('STATS')} className={`px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 active:scale-95 transition-all border shadow-sm hover:shadow-md ${activeView === 'STATS' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 border-blue-200 dark:border-blue-800/50' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                         <i className="fa-solid fa-chart-line"></i> <span className="hidden sm:inline">סטטיסטיקה</span>
                     </button>
@@ -994,6 +1117,7 @@
                 {activeView === 'HABIT_DETAIL' && renderHabitDetail()}
                 {activeView === 'STORE' && renderStore()}
                 {activeView === 'STATS' && renderStats()}
+                {activeView === 'ABOUT' && renderAbout()}
 
                 {isAddingHabit && (
                   <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -1102,6 +1226,13 @@
                                 <div>
                                     <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">אימייל</label>
                                     <input type="email" required placeholder="כתובת אימייל" value={authEmail} onChange={e => setAuthEmail(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 transition-all text-left" dir="ltr" />
+                                    <div className="flex gap-2 mt-2 overflow-x-auto pb-1 scrollbar-hide" dir="ltr">
+                                        {['@gmail.com', '@yahoo.com', '@hotmail.com', '@outlook.com'].map(domain => (
+                                            <button type="button" key={domain} onClick={() => setAuthEmail(prev => prev.split('@')[0] + domain)} className="bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap hover:bg-indigo-100 transition-colors">
+                                                {domain}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">סיסמה {isSignUp && '(מינימום 6 תווים)'}</label>
@@ -1149,6 +1280,12 @@
                     </div>
                 )}
               </div>
+              
+              {/* קרדיטים בתחתית העמוד */}
+              <footer className="mt-16 pt-8 pb-4 border-t border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400 text-sm">
+                  <p className="mb-1">נבנה על ידי <span className="font-bold text-slate-700 dark:text-slate-300">לב טוב</span></p>
+                  <p>ליצירת קשר: <a href="mailto:myylbwt@gmail.com" className="text-indigo-500 hover:text-indigo-600 hover:underline transition-colors font-medium">myylbwt@gmail.com</a></p>
+              </footer>
             </div>
           );
         };
